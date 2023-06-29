@@ -38,3 +38,9 @@ Task 3 : Object Follower
 </p>
 
 Task 4 : Localization
+<p align="center">
+  <img width="900" height="450" src="doc/sro_task4.gif">
+</p>
+
+##  Reference
+https://github.com/WallNutss/SROTask_CoppeliaSim
