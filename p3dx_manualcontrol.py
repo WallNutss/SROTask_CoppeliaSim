@@ -100,6 +100,21 @@ def setRobotMotion(clientID, motors, veloCmd):
     error2 = sim.simxSetJointTargetVelocity(clientID, motors[1], veloCmd[1], sim.simx_opmode_streaming)
     return error1,error2
 
+def pathTracking(robotPose, waypoints, offset):
+    length = len(waypoints)
+    i = pathTracking.i
+    
+    err_x = waypoints[i][0] - robotPose[0]
+    err_y = waypoints[i][1] - robotPose[1]
+
+    print("wp = {} wp_target = {:.2f} {:.2f} {:.2f} err_x = {:.2f} err_y = {:.2f}".format(i, waypoints[i][0], waypoints[i][1], waypoints[i][2], err_x, err_y))
+
+    if(abs(err_x) <= offset and abs(err_y) <= offset and pathTracking.i < length-1):
+        pathTracking.i = pathTracking.i + 1
+        return waypoints[i][0], waypoints[i][1], waypoints[i][2]
+    else:
+        return waypoints[i][0], waypoints[i][1], waypoints[i][2]
+
 def objectFollower(s3,s4,s5,s6):
     distance_ref = 0.25
     angle_ref = 0
@@ -227,13 +242,23 @@ sensors_handle = getSensorsHandle(client_id)
 
 #Robot Handle
 robotHandle = setObjectHandler(client_id, "/PioneerP3DX")
+waypoints = [None]*4
+for i in range(4):
+    waypoints[i] = setObjectHandler(client_id, "/Cylinder[{}]".format(i))
+
+pathTracking.i = 0
 
 # -- Simulation Process
-mode = 3
+mode = 4
 samp_time = 0.1
 n = 1.
 velo_zero = (0,0)
 time_start = time.time()
+
+# Getting Waypoints Information
+waypointsPose = [None]*4
+for i in range(4):
+    waypointsPose[i] = getObjectPose(client_id, waypoints[i], block=True)
 
 while(True):
     t_now = time.time()-time_start
@@ -277,15 +302,27 @@ while(True):
             thetaRN, thetaLN = velocityNormalization(thetaR,thetaL)
             setRobotMotion(client_id,motors,(thetaR, thetaL))     
 
-            # Algoritma dari Alvan [WORK]/ Uncomment Code Below to see it work
+            # Algoritma dari Alvan [WORK]/ Uncomment Code Below to see it work // Ya nggak juga sih, kalo digeser jadi hancur juga
             #vtrans,vrot = poseControl2(ref,act,etol=0.1)
             #v1,v2 = inversKinematics(vtrans,vrot)
             #setRobotMotion(client_id,motors,(v1, v2))
             
 
-        # Mode Multiple Waypoints
+        # Mode Multiple Waypoints/Path Tracking
         if (mode==4):
-            pass    
+            # Getting robot information
+            robot = setObjectHandler(client_id, '/PioneerP3DX')
+            robotPose = getObjectPose(client_id, robot,block=True)
+            
+            waypointsPose[3] = getObjectPose(client_id, waypoints[3])
+            wp_x, wp_y, wp_z = pathTracking(robotPose, waypointsPose, 1)
+
+            #Akar masalahnya disini, yang masalahnya juga muncul di assignment 4 :')
+            vtrans, vrot = poseControl2([wp_x, wp_y, wp_z], robotPose, etol=0.1)
+            #Inverse Kinematics All Good
+            v1,v2 = inversKinematics(vtrans,vrot)
+            setRobotMotion(client_id,motors,(float(v1), float(v2)))
+
         # Keyboard Interuption
         if keyboard.is_pressed('esc'):
             err1, err2 = setRobotMotion(client_id,motors, (0,0))
